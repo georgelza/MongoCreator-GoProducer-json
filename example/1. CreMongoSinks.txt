@@ -1,0 +1,83 @@
+
+
+------------------------------------------------------------------------------
+-- Post/Sink to Local Mongo container
+
+  curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '
+      {"name": "mongo-local-salesbaskets-sink-json",
+        "config": {
+          "connector.class":"com.mongodb.kafka.connect.MongoSinkConnector",
+          "connection.uri":"mongodb://mbp.local:27017/?directConnection=true",
+          "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter.schemas.enable": false,
+          "database":"MongoCom0",
+          "collection":"json_salesbaskets",
+          "topics":"json_salesbaskets"
+          }
+      }
+      ' \
+  http://localhost:8083/connectors -w "\n"
+
+
+  curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '
+      {"name": "mongo-local-salespayments-sink-json",
+        "config": {
+          "connector.class":"com.mongodb.kafka.connect.MongoSinkConnector",
+          "connection.uri":"mongodb://mbp.local:27017/?directConnection=true",
+          "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter.schemas.enable": false,
+          "database":"MongoCom0",
+          "collection":"json_salespayments",
+          "topics":"json_salespayments"
+          }
+      }
+      ' \
+  http://localhost:8083/connectors -w "\n"
+
+
+------------------------------------------------------------------------------
+
+-- Post/Sink to Atlas
+
+curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '
+     { "name": "mongo-atlas-salesbaskets-sink-json",
+        "config": {
+          "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+          "connection.uri": "mongodb+srv://adminuser:pass@cluster0.gqtneeXX.mongodb.net",
+          "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter.schemas.enable": false,
+          "database": "MongoCom0",
+          "collection": "json_salesbaskets",
+          "topics": "json_salesbaskets"
+        }
+      } 
+      ' \
+  http://localhost:8083/connectors -w "\n"
+
+  
+  curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '
+     { "name": "mongo-cloud-salespayments-sink-json",
+        "config": {
+          "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+          "connection.uri": "mongodb+srv://adminuser:pass@cluster0.gqtneeXX.mongodb.net",
+          "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter.schemas.enable": false,
+          "database": "MongoCom0",
+          "collection": "json_salespayments",
+          "topics": "json_salespayments"
+        }
+      } 
+      ' \
+  http://localhost:8083/connectors -w "\n"
