@@ -28,10 +28,16 @@
 *					: going to add code/module to disable the Kafka push of docs and rather directly push onto Mongo Atlas, thus
 *					: bypassing the Confluent Kakfa cluster avaiability challenge.
 *
+*					: 17 June
+*					: Renaming the main repo => *-pb as the Protobuf version & a second version/repo *-json thats json based
+*
+*
 *
 *	Git				: https://github.com/georgelza/MongoCreator-GoProducer
 *
-*	By				: George Leonard (georgelza@gmail.com) aka georgelza on Discord and Mongo Community Forum
+*	Author			: George Leonard
+*
+*	Copyright © 2021: George Leonard georgelza@gmail.com aka georgelza on Discord and Mongo Community Forum
 *
 *	jsonformatter 	: https://jsonformatter.curiousconcept.com/#
 *
