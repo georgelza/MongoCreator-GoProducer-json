@@ -30,7 +30,7 @@
 *
 *					: 17 June
 *					: Renaming the main repo => *-pb as the Protobuf version & a second version/repo *-json thats json based
-*
+*					: No Schemaregistration for the json version at this point
 *
 *
 *	Git				: https://github.com/georgelza/MongoCreator-GoProducer
