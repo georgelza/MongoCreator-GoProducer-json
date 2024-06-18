@@ -551,7 +551,7 @@ func JsonToBson(message []byte) ([]byte, error) {
 	return marshaled, nil
 }
 
-func constructFakeBasket() (t_Basket types.Tp_basket, t_Payment types.Tp_payment, storeName string, err error) {
+func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, storeName string, err error) {
 
 	// Fake Data etc, not used much here though
 	// https://github.com/brianvoe/gofakeit
@@ -583,7 +583,7 @@ func constructFakeBasket() (t_Basket types.Tp_basket, t_Payment types.Tp_payment
 
 	// time that everything happened, the 1st as a Unix Epoc time representation,
 	// the 2nd in nice human readable milli second representation.
-	eventTimestamp := time.Now()
+	eventTimestamp = time.Now()
 	eventTime := eventTimestamp.Format("2006-01-02T15:04:05.000") + vGeneral.TimeOffset
 
 	// How many potential products do we have
@@ -633,11 +633,7 @@ func constructFakeBasket() (t_Basket types.Tp_basket, t_Payment types.Tp_payment
 		Total:         total_amount,
 	}
 
-	// For now we call it from here... real life it will be a seperate process/thread thats completed as the
-	// customer pays for his basket
-	t_Payment = constructPayments(txnId, eventTimestamp, total_amount)
-
-	return t_Basket, t_Payment, store.Name, nil
+	return t_Basket, eventTimestamp, store.Name, nil
 }
 
 func constructPayments(txnId string, eventTimestamp time.Time, total_amount float64) (t_Payment types.Tp_payment) {
@@ -900,8 +896,15 @@ func runLoader(arg string) {
 		// We're going to time every record and push that to prometheus
 		txnStart := time.Now()
 
-		// Build an sales basket and get the associated payment document
-		t_SalesBasket, t_Payment, storeName, err := constructFakeBasket()
+		// Build an sales basket
+		t_SalesBasket, eventTimestamp, storeName, err := constructFakeBasket()
+		if err != nil {
+			os.Exit(1)
+
+		}
+
+		// Build an payment record for created sales basket
+		t_Payment := constructPayments(t_SalesBasket.InvoiceNumber, eventTimestamp, t_SalesBasket.Total)
 		if err != nil {
 			os.Exit(1)
 
@@ -936,7 +939,7 @@ func runLoader(arg string) {
 			// SalesBasket
 			valueBytes, err := json.Marshal(t_SalesBasket)
 			if err != nil {
-				grpcLog.Error(fmt.Sprintf("Marchalling error: %s", err))
+				grpcLog.Error(fmt.Sprintf("t_SalesBasket: Marchalling error: %s", err))
 
 			}
 
@@ -963,7 +966,7 @@ func runLoader(arg string) {
 
 			valueBytes, err = json.Marshal(t_Payment)
 			if err != nil {
-				grpcLog.Error(fmt.Sprintf("Marchalling error: %s", err))
+				grpcLog.Error(fmt.Sprintf("t_Payment: Marchalling error: %s", err))
 
 			}
 

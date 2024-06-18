@@ -67,7 +67,7 @@ curl -X POST \
   curl -X POST \
   -H "Content-Type: application/json" \
   --data '
-     { "name": "mongo-cloud-salespayments-sink-json",
+     { "name": "mongo-atlas-salespayments-sink-json",
         "config": {
           "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
           "connection.uri": "mongodb+srv://adminuser:pass@cluster0.gqtneeXX.mongodb.net",

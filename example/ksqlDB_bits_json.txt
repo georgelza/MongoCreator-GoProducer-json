@@ -53,19 +53,19 @@ CREATE STREAM json_salesbaskets (
         	Quantity integer >>) 
 WITH (KAFKA_TOPIC='json_salesbaskets',
 		    VALUE_FORMAT='JSON',
-        PARTITIONS=1);
+        	PARTITIONS=1);
        
        
 -- salespayments       
 CREATE STREAM json_salespayments	 (	
-	      InvoiceNumber VARCHAR,
-	      FinTransactionID VARCHAR,
-	      PayDateTime VARCHAR,
-	      PayTimestamp TIMESTAMP,
-	      Paid DOUBLE )        
+	      	InvoiceNumber VARCHAR,
+	      	FinTransactionID VARCHAR,
+	      	PayDateTime VARCHAR,
+	      	PayTimestamp TIMESTAMP,
+	      	Paid DOUBLE )        
 WITH (KAFKA_TOPIC='json_salespayments',
-       VALUE_FORMAT='JSON',
-       PARTITIONS=1);
+       		VALUE_FORMAT='JSON',
+       		PARTITIONS=1);
      
 CREATE STREAM json_salescompleted WITH (KAFKA_TOPIC='json_salescompleted',
        VALUE_FORMAT='JSON',
