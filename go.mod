@@ -17,12 +17,15 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/hokaccha/go-prettyjson v0.0.0-20211117102719-0474bc63780f // indirect
+	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
+	github.com/invopop/jsonschema v0.4.0 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

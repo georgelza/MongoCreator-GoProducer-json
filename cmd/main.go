@@ -41,6 +41,14 @@
 *
 *	jsonformatter 	: https://jsonformatter.curiousconcept.com/#
 *
+*   This will be semi garble as the topics are protobuff based.
+*
+*	docker exec -t kafkacat   kcat   -b broker:29092   -t pb_salesbaskets   -C
+*	docker exec -t kafkacat   kcat   -b broker:29092   -t pb_salespayments   -C
+*	docker exec -t kafkacat   kcat   -b broker:29092   -t pb_salescompleted1   -C
+*
+*   curl --silent --location --request GET 'http://localhost:8081/subjects/pb_salesbaskets-value/versions/latest' |jq '.'
+*
 *****************************************************************************/
 
 package main
@@ -60,6 +68,8 @@ import (
 	"github.com/brianvoe/gofakeit"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/jsonschema"
 	"github.com/google/uuid"
 
 	"github.com/TylerBrock/colorjson"
@@ -97,9 +107,9 @@ func init() {
 
 	grpcLog.Infoln("###############################################################")
 	grpcLog.Infoln("#")
-	grpcLog.Infoln("#   Project   : GoProducer 1.0")
+	grpcLog.Infoln("#   Project   : GoProducer 1.1 - JSON based")
 	grpcLog.Infoln("#")
-	grpcLog.Infoln("#   Comment   : MongoCreator Project")
+	grpcLog.Infoln("#   Comment   : MongoCreator Project and lots of Kafka")
 	grpcLog.Infoln("#")
 	grpcLog.Infoln("#   By        : George Leonard (georgelza@gmail.com)")
 	grpcLog.Infoln("#")
@@ -338,6 +348,7 @@ func printKafkaConfig(vKafka types.TKafka) {
 	grpcLog.Info("****** Kafka Connection Parameters *****")
 	grpcLog.Info("*")
 	grpcLog.Info("* Kafka bootstrap Server is\t", vKafka.Bootstrapservers)
+	grpcLog.Info("* Kafka schema Registry is\t", vKafka.SchemaRegistryURL)
 	grpcLog.Info("* Kafka Basket Topic is\t", vKafka.BasketTopicname)
 	grpcLog.Info("* Kafka Payment Topic is\t", vKafka.PaymentTopicname)
 	grpcLog.Info("* Kafka # Parts is\t\t", vKafka.Numpartitions)
@@ -636,13 +647,13 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 	return t_Basket, eventTimestamp, store.Name, nil
 }
 
-func constructPayments(txnId string, eventTimestamp time.Time, total_amount float64) (t_Payment types.Tp_payment) {
+func constructPayments(txnId string, eventTimestamp time.Time, total_amount float64) (t_SalesPayment types.Tp_payment) {
 
 	// We're saying payment can be now up to 5min and 59 seconds later
 	payTimestamp := eventTimestamp.Local().Add(time.Minute*time.Duration(gofakeit.Number(0, 5)) + time.Second*time.Duration(gofakeit.Number(0, 59)))
 	payTime := payTimestamp.Format("2006-01-02T15:04:05.000") + vGeneral.TimeOffset
 
-	t_Payment = types.Tp_payment{
+	t_SalesPayment = types.Tp_payment{
 		InvoiceNumber:    txnId,
 		PayDateTime:      payTime,
 		PayTimestamp:     fmt.Sprint(payTimestamp.UnixMilli()),
@@ -650,26 +661,7 @@ func constructPayments(txnId string, eventTimestamp time.Time, total_amount floa
 		FinTransactionID: uuid.New().String(),
 	}
 
-	return t_Payment
-}
-
-func KafkaPost(valueBytes []byte, storeName string) {
-
-	kafkaMsg := kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &vKafka.PaymentTopicname,
-			Partition: kafka.PartitionAny,
-		},
-		Value: valueBytes,        // This is the payload/body thats being posted
-		Key:   []byte(storeName), // We us this to group the same transactions together in order, IE submitting/Debtor Bank.
-	}
-
-	// This is where we publish message onto the topic... on the Confluent cluster for now,
-	if err := p.Produce(&kafkaMsg, nil); err != nil {
-		grpcLog.Error(fmt.Sprintf("😢 Darn, there's an error producing the message! %s", err.Error()))
-
-	}
-
+	return t_SalesPayment
 }
 
 // Big worker... This is where all the magic is called from, ha ha.
@@ -680,6 +672,9 @@ func runLoader(arg string) {
 	var f_pmnt *os.File
 	var basketcol *mongo.Collection
 	var paymentcol *mongo.Collection
+	var client schemaregistry.Client
+	var ser *jsonschema.Serializer
+	var p *kafka.Producer
 
 	// Initialize the vGeneral struct variable - This holds our configuration settings.
 	vGeneral = loadConfig(arg)
@@ -692,11 +687,6 @@ func runLoader(arg string) {
 	if vGeneral.KafkaEnabled == 1 {
 
 		vKafka = loadKafka(arg)
-
-		fmt.Println("Mechanism", vKafka.Sasl_mechanisms)
-		fmt.Println("Username", vKafka.Sasl_username)
-		fmt.Println("Password", vKafka.Sasl_password)
-		fmt.Println("Broker", vKafka.Bootstrapservers)
 
 		// Lets make sure the topic/s exist
 		CreateTopic(vKafka)
@@ -733,49 +723,65 @@ func runLoader(arg string) {
 				grpcLog.Info("* Security Authentifaction configured in ConfigMap")
 
 			}
+			fmt.Println("Mechanism", vKafka.Sasl_mechanisms)
+			fmt.Println("Username", vKafka.Sasl_username)
+			fmt.Println("Password", vKafka.Sasl_password)
+			fmt.Println("Broker", vKafka.Bootstrapservers)
 		}
 
 		// Variable p holds the new Producer instance.
 		p, err = kafka.NewProducer(&cm)
+		if err != nil {
+			grpcLog.Errorln(fmt.Sprintf("Failed to create producer: %s", err))
+
+		}
 		defer p.Close()
 
 		// Check for errors in creating the Producer
 		if err != nil {
-			grpcLog.Error(fmt.Sprintf("😢Oh noes, there's an error creating the Producer! %s", err))
+			grpcLog.Errorln(fmt.Sprintf("😢Oh noes, there's an error creating the Producer! %s", err))
 
 			if ke, ok := err.(kafka.Error); ok == true {
 				switch ec := ke.Code(); ec {
 				case kafka.ErrInvalidArg:
-					grpcLog.Error(fmt.Sprintf("😢 Can't create the producer because you've configured it wrong (code: %d)!\n\t%v\n\nTo see the configuration options, refer to https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md", ec, err))
+					grpcLog.Errorln(fmt.Sprintf("😢 Can't create the producer because you've configured it wrong (code: %d)!\n\t%v\n\nTo see the configuration options, refer to https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md", ec, err))
 				default:
-					grpcLog.Error(fmt.Sprintf("😢 Can't create the producer (Kafka error code %d)\n\tError: %v\n", ec, err))
+					grpcLog.Errorln(fmt.Sprintf("😢 Can't create the producer (Kafka error code %d)\n\tError: %v\n", ec, err))
 				}
 
 			} else {
 				// It's not a kafka.Error
-				grpcLog.Error(fmt.Sprintf("😢 Oh noes, there's a generic error creating the Producer! %v", err.Error()))
+				grpcLog.Errorln(fmt.Sprintf("😢 Oh noes, there's a generic error creating the Producer! %v", err.Error()))
 			}
 			// call it when you know it's broken
 			os.Exit(1)
 
 		}
+		grpcLog.Infoln(fmt.Sprintf("Created Kafka Producer %v", p))
+
+		// Create a new Schema Registry client
+		client, err = schemaregistry.NewClient(schemaregistry.NewConfig(vKafka.SchemaRegistryURL))
+		if err != nil {
+			grpcLog.Errorln(fmt.Sprintf("Failed to create schema registry client: %s", err))
+			os.Exit(1)
+		}
+
+		serdeConfig := jsonschema.NewSerializerConfig()
+		serdeConfig.AutoRegisterSchemas = false
+		serdeConfig.UseLatestVersion = true
+		serdeConfig.EnableValidation = true
+
+		ser, err = jsonschema.NewSerializer(client, 2, serdeConfig)
+		if err != nil {
+			grpcLog.Errorln(fmt.Sprintf("Failed to create serializer: %s", err))
+			os.Exit(1)
+		}
 
 		if vGeneral.Debuglevel > 0 {
-			grpcLog.Info("* Created Kafka Producer instance :")
-			grpcLog.Info("")
-			grpcLog.Info("**** LETS GO Processing ****")
-			grpcLog.Info("")
+			grpcLog.Infoln("* Created Kafka Producer instance :")
+			grpcLog.Infoln("")
 		}
 	}
-
-	//
-	// For signalling termination from main to go-routine
-	termChan := make(chan bool, 1)
-	// For signalling that termination is done from go-routine to main
-	doneChan := make(chan bool)
-
-	// We will use this to remember when we last flushed the kafka queues.
-	vFlush := 0
 
 	if vGeneral.MongoAtlasEnabled == 1 {
 
@@ -794,26 +800,30 @@ func runLoader(arg string) {
 
 		Mongoclient, err := mongo.Connect(ctx, opts)
 		if err != nil {
-			grpcLog.Fatal("Mongo Connect Failed: ", err)
+			grpcLog.Fatal(fmt.Sprintf("Mongo Connect Failed: %s", err))
+			os.Exit(1)
 		}
 		grpcLog.Infoln("* MongoDB Client Connected")
 
 		defer func() {
 			if err = Mongoclient.Disconnect(ctx); err != nil {
-				grpcLog.Fatal("Mongo Disconected: ", err)
+				grpcLog.Fatal(fmt.Sprintf("Mongo Disconected: %s", err))
+				os.Exit(1)
 			}
 		}()
 
 		// Ping the primary
 		if err := Mongoclient.Ping(ctx, readpref.Primary()); err != nil {
-			grpcLog.Fatal("There was a error creating the Client object, Ping failed: ", err)
+			grpcLog.Fatal(fmt.Sprintf("There was a error creating the Client object, Ping failed: %s", err))
+			os.Exit(1)
 		}
 		grpcLog.Infoln("* MongoDB Client Pinged")
 
 		// Create go routine to defer the closure
 		defer func() {
 			if err = Mongoclient.Disconnect(context.TODO()); err != nil {
-				grpcLog.Fatal("Mongo Disconected: ", err)
+				grpcLog.Fatal(fmt.Sprintf("Mongo Disconected: %s", err))
+				os.Exit(1)
 			}
 		}()
 
@@ -844,8 +854,8 @@ func runLoader(arg string) {
 
 		f_basket, err = os.OpenFile(loc_basket, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			grpcLog.Errorln("os.OpenFile error A", err)
-			panic(err)
+			grpcLog.Fatal(fmt.Sprintf("os.OpenFile error f_basket %s", err))
+			os.Exit(1)
 
 		}
 		defer f_basket.Close()
@@ -859,16 +869,11 @@ func runLoader(arg string) {
 
 		f_pmnt, err = os.OpenFile(loc_pmnt, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			grpcLog.Errorln("os.OpenFile error A", err)
-			panic(err)
+			grpcLog.Fatal(fmt.Sprintf("os.OpenFile error f_pmnt %s", err))
+			os.Exit(1)
 
 		}
 		defer f_pmnt.Close()
-	}
-
-	// if set to 0 then we want it to simply just run and run and run. so lets give it a pretty big number
-	if vGeneral.Testsize == 0 {
-		vGeneral.Testsize = 10000000000000
 	}
 
 	if vGeneral.Debuglevel > 0 {
@@ -877,12 +882,28 @@ func runLoader(arg string) {
 
 	}
 
-	basketdocs := make([]interface{}, vMongodb.Batch_size)
-	paymentdocs := make([]interface{}, vMongodb.Batch_size)
-	msg_mongo_count := 0
+	// if set to 0 then we want it to simply just run and run and run. so lets give it a pretty big number
+	if vGeneral.Testsize == 0 {
+		vGeneral.Testsize = 10000000000000
+	}
+
+	// For signalling termination from main to go-routine
+	var termChan = make(chan bool, 1)
+	// For signalling that termination is done from go-routine to main
+	var doneChan = make(chan bool)
+
+	var basketdocs = make([]interface{}, vMongodb.Batch_size)
+	var paymentdocs = make([]interface{}, vMongodb.Batch_size)
+
+	var json_SalesBasket []byte
+	var json_SalesPayment []byte
+
+	// We will use this to remember when we last flushed the kafka queues and Mongo buffer.
+	var vFlush = 0
+	var msg_mongo_count = 0
 
 	// this is to keep record of the total batch run time
-	vStart := time.Now()
+	var vStart = time.Now()
 	for count := 0; count < vGeneral.Testsize; count++ {
 
 		reccount := fmt.Sprintf("%v", count+1)
@@ -899,25 +920,38 @@ func runLoader(arg string) {
 		// Build an sales basket
 		t_SalesBasket, eventTimestamp, storeName, err := constructFakeBasket()
 		if err != nil {
+			grpcLog.Fatalln(fmt.Sprintf("Fatal constructFakeBasket: %s", err))
 			os.Exit(1)
 
+		}
+
+		// if vGeneral.sleep = 1000, then n will be random value of 0 -> 1000  aka 0 and 1 second
+		// this causes a actual sleep in the program execution/ impacts messages/payloads produced
+		// for fake data we add between 0 and 5 minutes to the payment, elapsed from the salesbasket create
+		if vGeneral.Sleep > 0 {
+			n := rand.Intn(vGeneral.Sleep)
+			time.Sleep(time.Duration(n) * time.Millisecond)
 		}
 
 		// Build an payment record for created sales basket
-		t_Payment := constructPayments(t_SalesBasket.InvoiceNumber, eventTimestamp, t_SalesBasket.Total)
+		t_SalesPayment := constructPayments(t_SalesBasket.InvoiceNumber, eventTimestamp, t_SalesBasket.Total)
 		if err != nil {
+			grpcLog.Fatalln(fmt.Sprintf("Fatal constructPayments: %s", err))
 			os.Exit(1)
 
 		}
 
-		json_SalesBasket, err := json.Marshal(t_SalesBasket)
+		// json Marshal for printing purpose
+		json_SalesBasket, err = json.Marshal(t_SalesBasket)
 		if err != nil {
+			grpcLog.Fatalln(fmt.Sprintf("json_SalesBasket Marshal: %s", err))
 			os.Exit(1)
 
 		}
 
-		json_Payment, err := json.Marshal(t_Payment)
+		json_SalesPayment, err = json.Marshal(t_SalesPayment)
 		if err != nil {
+			grpcLog.Fatalln(fmt.Sprintf("json_SalesPayment Marshal: %s", err))
 			os.Exit(1)
 
 		}
@@ -925,7 +959,7 @@ func runLoader(arg string) {
 		// echo to screen
 		if vGeneral.Debuglevel >= 2 {
 			prettyJSON(string(json_SalesBasket))
-			prettyJSON(string(json_Payment))
+			prettyJSON(string(json_SalesPayment))
 		}
 
 		// Post to Confluent Kafka - if enabled
@@ -937,9 +971,9 @@ func runLoader(arg string) {
 			}
 
 			// SalesBasket
-			valueBytes, err := json.Marshal(t_SalesBasket)
+			valueBytes, err := ser.Serialize(vKafka.BasketTopicname, &t_SalesBasket)
 			if err != nil {
-				grpcLog.Error(fmt.Sprintf("t_SalesBasket: Marchalling error: %s", err))
+				grpcLog.Errorln(fmt.Sprintf("SalesBasket: Serialize error: %s", err))
 
 			}
 
@@ -954,20 +988,14 @@ func runLoader(arg string) {
 
 			// This is where we publish message onto the topic... on the Confluent cluster for now,
 			if err := p.Produce(&kafkaMsg, nil); err != nil {
-				grpcLog.Error(fmt.Sprintf("😢 Darn, there's an error producing the message! %s", err.Error()))
+				grpcLog.Errorln(fmt.Sprintf("😢 Darn, there's an error producing the SalesBasket message! %s", err.Error()))
 
 			}
 
-			// Payment
-			if vGeneral.Sleep > 0 {
-				n := rand.Intn(vGeneral.Sleep) // if vGeneral.sleep = 1000, then n will be random value of 0 -> 1000  aka 0 and 1 second
-				time.Sleep(time.Duration(n) * time.Millisecond)
-			}
-
-			valueBytes, err = json.Marshal(t_Payment)
+			// SalesPayment
+			valueBytes, err = ser.Serialize(vKafka.PaymentTopicname, &t_SalesPayment)
 			if err != nil {
-				grpcLog.Error(fmt.Sprintf("t_Payment: Marchalling error: %s", err))
-
+				grpcLog.Errorln(fmt.Sprintf("SalesPayment: Serialize error: %s", err))
 			}
 
 			kafkaMsg = kafka.Message{
@@ -981,7 +1009,7 @@ func runLoader(arg string) {
 
 			// This is where we publish message onto the topic... on the Confluent cluster for now,
 			if err := p.Produce(&kafkaMsg, nil); err != nil {
-				grpcLog.Error(fmt.Sprintf("😢 Darn, there's an error producing the message! %s", err.Error()))
+				grpcLog.Errorln(fmt.Sprintf("😢 Darn, there's an error producing the SalesPayment message! %s", err.Error()))
 
 			}
 
@@ -995,7 +1023,7 @@ func runLoader(arg string) {
 
 				} else {
 					if vGeneral.Debuglevel >= 1 {
-						grpcLog.Info(fmt.Sprintf("%s/%s, Messages flushed from the queue", count, vFlush))
+						grpcLog.Info(fmt.Sprintf("%v/%v, Messages flushed from the queue", count, vFlush))
 
 					}
 					vFlush = 0
@@ -1019,13 +1047,13 @@ func runLoader(arg string) {
 							// It's a delivery report
 							km := ev.(*kafka.Message)
 							if km.TopicPartition.Error != nil {
-								grpcLog.Error(fmt.Sprintf("☠️ Failed to send message to topic '%v'\tErr: %v",
+								grpcLog.Errorln(fmt.Sprintf("☠️ Failed to send message to topic '%v'\tErr: %v",
 									string(*km.TopicPartition.Topic),
 									km.TopicPartition.Error))
 
 							} else {
 								if vGeneral.Debuglevel > 2 {
-									grpcLog.Info(fmt.Sprintf("✅ Message delivered to topic '%v'(partition %d at offset %d)",
+									grpcLog.Infoln(fmt.Sprintf("✅ Message delivered to topic '%v'(partition %d at offset %d)",
 										string(*km.TopicPartition.Topic),
 										km.TopicPartition.Partition,
 										km.TopicPartition.Offset))
@@ -1036,7 +1064,7 @@ func runLoader(arg string) {
 						case kafka.Error:
 							// It's an error
 							em := ev.(kafka.Error)
-							grpcLog.Error(fmt.Sprint("☠️ Uh oh, caught an error:\n\t%v", em))
+							grpcLog.Errorln(fmt.Sprint("☠️ Uh oh, caught an error:\t%v", em))
 
 						}
 					case <-termChan:
@@ -1059,47 +1087,34 @@ func runLoader(arg string) {
 			// this way we don't need to care what the source structure is, it is all cast and inserted into the defined collection.
 
 			// Sales Basket Doc
-			basketBytes, err := json.Marshal(t_SalesBasket)
+			basketdoc, err := JsonToBson(json_SalesBasket)
 			if err != nil {
-				grpcLog.Error(fmt.Sprintf("Marchalling error: %s", err))
+				grpcLog.Errorln(fmt.Sprintf("Oops, we had a problem JsonToBson converting the payload, %s", err))
 
 			}
 
-			basketdoc, err := JsonToBson(basketBytes)
+			// Sales Payment doc
+			paymentdoc, err := JsonToBson(json_SalesPayment)
 			if err != nil {
-				grpcLog.Errorln("Oops, we had a problem JsonToBson converting the payload, ", err)
-
-			}
-
-			// Payment Doc
-			paymentBytes, err := json.Marshal(t_Payment)
-			if err != nil {
-				grpcLog.Error(fmt.Sprintf("Marchalling error: %s", err))
-
-			}
-
-			paymentdoc, err := JsonToBson(paymentBytes)
-			if err != nil {
-				grpcLog.Errorln("Oops, we had a problem JsonToBson converting the payload, ", err)
+				grpcLog.Errorln(fmt.Sprintf("Oops, we had a problem JsonToBson converting the payload, %s", err))
 
 			}
 
 			// Single Record inserts
 			if vMongodb.Batch_size == 1 {
 
-				// Sales Basket
-
+				// SalesBasket
 				// Time to get this into the MondoDB Collection
 				result, err := basketcol.InsertOne(context.TODO(), basketdoc)
 				if err != nil {
-					grpcLog.Errorln("Oops, we had a problem inserting (I1) the document, ", err)
+					grpcLog.Errorln(fmt.Sprintf("Oops, we had a problem) inserting (I1) the document, %s", err))
 
 				}
 
 				if vGeneral.Debuglevel >= 2 {
 					// When you run this file, it should print:
 					// Document inserted with ID: ObjectID("...")
-					grpcLog.Infoln("Mongo Sales Basket Doc inserted with ID: ", result.InsertedID, "\n")
+					grpcLog.Infoln("Mongo SalesBasket Doc inserted with ID: ", result.InsertedID, "\n")
 
 				}
 				if vGeneral.Debuglevel >= 3 {
@@ -1108,24 +1123,23 @@ func runLoader(arg string) {
 
 				}
 
-				// Payment
-
+				// SalesPayment
 				// Time to get this into the MondoDB Collection
 				result, err = paymentcol.InsertOne(context.TODO(), paymentdoc)
 				if err != nil {
-					grpcLog.Errorln("Oops, we had a problem inserting (I1) the document, ", err)
+					grpcLog.Errorln(fmt.Sprintf("Oops, we had a problem inserting (I1) the document, %s", err))
 
 				}
 
 				if vGeneral.Debuglevel >= 2 {
 					// When you run this file, it should print:
 					// Document inserted with ID: ObjectID("...")
-					grpcLog.Infoln("Mongo Payment Doc inserted with ID: ", result.InsertedID, "\n")
+					grpcLog.Infoln("Mongo SalesPayment Doc inserted with ID: ", result.InsertedID, "\n")
 
 				}
 				if vGeneral.Debuglevel >= 3 {
 					// prettyJSON takes a string which is actually JSON and makes it's pretty, and prints it.
-					prettyJSON(string(json_Payment))
+					prettyJSON(string(json_SalesPayment))
 
 				}
 
@@ -1142,22 +1156,22 @@ func runLoader(arg string) {
 					// Sales Basket
 					_, err = basketcol.InsertMany(context.TODO(), basketdocs)
 					if err != nil {
-						grpcLog.Errorln("Oops, we had a problem inserting (IM) the document, ", err)
+						grpcLog.Errorln(fmt.Sprintf("Oops, we had a problem inserting (IM) the document, %s", err))
 
 					}
 					if vGeneral.Debuglevel >= 2 {
-						grpcLog.Infoln("Mongo Sale Basket Docs inserted: ", msg_mongo_count)
+						grpcLog.Infoln("Mongo SaleBasket Docs inserted: ", msg_mongo_count)
 
 					}
 
 					// Payment
 					_, err = paymentcol.InsertMany(context.TODO(), paymentdocs)
 					if err != nil {
-						grpcLog.Errorln("Oops, we had a problem inserting (IM) the document, ", err)
+						grpcLog.Errorln(fmt.Sprintf("Oops, we had a problem inserting (IM) the document, %s", err))
 
 					}
 					if vGeneral.Debuglevel >= 2 {
-						grpcLog.Infoln("Mongo Payment Docs inserted: ", msg_mongo_count)
+						grpcLog.Infoln("Mongo SalesPayment Docs inserted: ", msg_mongo_count)
 
 					}
 
@@ -1178,27 +1192,27 @@ func runLoader(arg string) {
 
 			}
 
-			// Basket
+			// SalesBasket
 			pretty_basket, err := json.MarshalIndent(t_SalesBasket, "", " ")
 			if err != nil {
-				grpcLog.Errorln("MarshalIndent error", err)
+				grpcLog.Errorln(fmt.Sprintf("pretty_basket MarshalIndent error %s", err))
 
 			}
 
 			if _, err = f_basket.WriteString(string(pretty_basket) + ",\n"); err != nil {
-				grpcLog.Errorln("os.WriteString error ", err)
+				grpcLog.Errorln(fmt.Sprintf("os.WriteString error %s", err))
 
 			}
 
-			// Payment
-			pretty_pmnt, err := json.MarshalIndent(t_Payment, "", " ")
+			// SalesPayment
+			pretty_pmnt, err := json.MarshalIndent(t_SalesPayment, "", " ")
 			if err != nil {
-				grpcLog.Errorln("MarshalIndent error", err)
+				grpcLog.Errorln(fmt.Sprintf("pretty_pmnt MarshalIndent error %s", err))
 
 			}
 
 			if _, err = f_pmnt.WriteString(string(pretty_pmnt) + ",\n"); err != nil {
-				grpcLog.Errorln("os.WriteString error ", err)
+				grpcLog.Errorln(fmt.Sprintf("pretty_pmnt os.WriteString error %s", err))
 
 			}
 

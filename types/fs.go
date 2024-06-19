@@ -27,6 +27,7 @@ type Tp_general struct {
 type TKafka struct {
 	EchoConfig        int
 	Bootstrapservers  string
+	SchemaRegistryURL string
 	BasketTopicname   string
 	PaymentTopicname  string
 	Numpartitions     int
