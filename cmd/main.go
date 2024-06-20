@@ -74,8 +74,10 @@ import (
 	"github.com/brianvoe/gofakeit"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	schemaregistry "github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/jsonschema"
+
 	"github.com/google/uuid"
 
 	"github.com/TylerBrock/colorjson"
@@ -692,10 +694,10 @@ func runLoader(arg string) {
 	var f_pmnt *os.File
 	var basketcol *mongo.Collection
 	var paymentcol *mongo.Collection
-	var client schemaregistry.Client
-	var serializer *jsonschema.Serializer
 	var p *kafka.Producer
+	var client schemaregistry.Client
 	var serdes *jsonschema.SerializerConfig
+	var serializer *jsonschema.Serializer
 
 	// Initialize the vGeneral struct variable - This holds our configuration settings.
 	vGeneral = loadConfig(arg)
@@ -791,11 +793,12 @@ func runLoader(arg string) {
 		serdes.AutoRegisterSchemas = false
 		serdes.EnableValidation = true
 
-		serializer, err = jsonschema.NewSerializer(client, 2, serdes)
+		serializer, err = jsonschema.NewSerializer(client, serde.ValueSerde, serdes)
 		if err != nil {
 			grpcLog.Errorln(fmt.Sprintf("Failed to create Json Schema serializer: %s", err))
 			os.Exit(1)
 		}
+		defer serializer.Close()
 
 		if vGeneral.Debuglevel > 0 {
 			grpcLog.Infoln("* Created Kafka Producer instance :")
@@ -991,8 +994,7 @@ func runLoader(arg string) {
 			}
 
 			// SalesBasket
-			var i_SalesBasket interface{} = t_SalesBasket
-			valueBytes, err := serializer.Serialize(vKafka.BasketTopicname, i_SalesBasket)
+			valueBytes, err := serializer.Serialize(vKafka.BasketTopicname, &t_SalesBasket)
 			if err != nil {
 				grpcLog.Errorln(fmt.Sprintf("SalesBasket: Failed to Serialize, error: %s", err))
 				os.Exit(1)
@@ -1015,10 +1017,8 @@ func runLoader(arg string) {
 			}
 
 			// SalesPayment
-			var i_SalesPayment interface{} = &t_SalesPayment
-			fmt.Println("i_SalesPayment:", i_SalesPayment)
 
-			valueBytes, err = serializer.Serialize(vKafka.PaymentTopicname, &i_SalesPayment)
+			valueBytes, err = serializer.Serialize(vKafka.PaymentTopicname, &t_SalesPayment)
 			if err != nil {
 				grpcLog.Errorln(fmt.Sprintf("SalesPayment: Failed to Serialize, error: %s", err))
 				os.Exit(1)

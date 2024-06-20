@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IdStruct": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Tp_BasketItem": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "price": {
+          "type": "number"
+        },
+        "quantity": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "properties": {
+    "basketItems": {
+      "items": {
+        "$ref": "#/definitions/Tp_BasketItem"
+      },
+      "type": "array"
+    },
+    "clerk": {
+      "$ref": "#/definitions/IdStruct"
+    },
+    "store": {
+      "$ref": "#/definitions/IdStruct"
+    },
+    "invoiceNumber": {
+      "type": "string"
+    },
+    "nett": {
+      "type": "number"
+    },
+    "saleDateTime": {
+      "type": "string"
+    },
+    "saleTimestamp": {
+      "type": "string"
+    },
+    "terminalPoint": {
+      "type": "string"
+    },
+    "total": {
+      "type": "number"
+    },
+    "vat": {
+      "type": "number"
+    }
+  },
+    "title": "json_salesbaskets",
+    "type": "object"
+}
