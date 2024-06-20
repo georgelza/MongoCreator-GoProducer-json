@@ -49,6 +49,12 @@
 *
 *   curl --silent --location --request GET 'http://localhost:8081/subjects/pb_salesbaskets-value/versions/latest' |jq '.'
 *
+*   Schema Registry integration
+*	https://github.com/confluentinc/confluent-kafka-go/issues/1078
+*
+*   Create schema registry entry from json
+*	https://www.liquid-technologies.com/online-json-to-schema-converter
+*
 *****************************************************************************/
 
 package main
@@ -571,23 +577,37 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 	gofakeit.Seed(0)
 
 	var store types.TStoreStruct
+	var clerk types.TPClerkStruct
+	var BasketItem types.Tp_BasketItem
+	var arBasketItems []types.Tp_BasketItem
+
 	if vGeneral.Store == 0 {
 		// Determine how many Stores we have in seed file,
 		// and build the 2 structures from that viewpoint
 		storeCount := len(varSeed.Stores) - 1
 		nStoreId := gofakeit.Number(0, storeCount)
-		store = varSeed.Stores[nStoreId]
+		//store = varSeed.Stores[nStoreId]
+		store = types.TStoreStruct{
+			Id:   varSeed.Stores[nStoreId].Id,
+			Name: varSeed.Stores[nStoreId].Name,
+		}
 
 	} else {
 		// We specified a specific store
-		store = varSeed.Stores[vGeneral.Store]
-
+		// store = varSeed.Stores[vGeneral.Store]
+		store = types.TStoreStruct{
+			Id:   varSeed.Stores[vGeneral.Store].Id,
+			Name: varSeed.Stores[vGeneral.Store].Name,
+		}
 	}
 
 	// Determine how many Clerks we have in seed file,
 	clerkCount := len(varSeed.Clerks) - 1
 	nClerkId := gofakeit.Number(0, clerkCount)
-	clerk := varSeed.Clerks[nClerkId]
+	clerk = types.TPClerkStruct{
+		Id:   varSeed.Clerks[nClerkId].Id,
+		Name: varSeed.Clerks[nClerkId].Name,
+	}
 
 	// Uniqiue reference to the basket/sale
 	txnId := uuid.New().String()
@@ -602,7 +622,6 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 	// now pick from array a random products to add to basket, by using 1 as a start point we ensure we always have at least 1 item.
 	nBasketItems := gofakeit.Number(1, vGeneral.Max_items_basket)
 
-	var arBasketItems []types.Tp_BasketItem
 	nett_amount := 0.0
 
 	for count := 0; count < nBasketItems; count++ {
@@ -612,14 +631,15 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 		quantity := gofakeit.Number(1, vGeneral.Max_quantity)
 		price := varSeed.Products[productId].Price
 
-		BasketItem := types.Tp_BasketItem{
+		BasketItem = types.Tp_BasketItem{
 			Id:       varSeed.Products[productId].Id,
 			Name:     varSeed.Products[productId].Name,
 			Brand:    varSeed.Products[productId].Brand,
 			Category: varSeed.Products[productId].Category,
-			Price:    varSeed.Products[productId].Price,
+			Price:    price,
 			Quantity: quantity,
 		}
+
 		arBasketItems = append(arBasketItems, BasketItem)
 
 		nett_amount = nett_amount + price*float64(quantity)
@@ -673,8 +693,9 @@ func runLoader(arg string) {
 	var basketcol *mongo.Collection
 	var paymentcol *mongo.Collection
 	var client schemaregistry.Client
-	var ser *jsonschema.Serializer
+	var serializer *jsonschema.Serializer
 	var p *kafka.Producer
+	var serdes *jsonschema.SerializerConfig
 
 	// Initialize the vGeneral struct variable - This holds our configuration settings.
 	vGeneral = loadConfig(arg)
@@ -741,12 +762,12 @@ func runLoader(arg string) {
 		if err != nil {
 			grpcLog.Errorln(fmt.Sprintf("😢Oh noes, there's an error creating the Producer! %s", err))
 
-			if ke, ok := err.(kafka.Error); ok == true {
+			if ke, ok := err.(kafka.Error); ok {
 				switch ec := ke.Code(); ec {
 				case kafka.ErrInvalidArg:
 					grpcLog.Errorln(fmt.Sprintf("😢 Can't create the producer because you've configured it wrong (code: %d)!\n\t%v\n\nTo see the configuration options, refer to https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md", ec, err))
 				default:
-					grpcLog.Errorln(fmt.Sprintf("😢 Can't create the producer (Kafka error code %d)\n\tError: %v\n", ec, err))
+					grpcLog.Errorln(fmt.Sprintf("😢 Can't create the producer (Kafka error code %d)\tError: %v\n", ec, err))
 				}
 
 			} else {
@@ -766,14 +787,13 @@ func runLoader(arg string) {
 			os.Exit(1)
 		}
 
-		serdeConfig := jsonschema.NewSerializerConfig()
-		serdeConfig.AutoRegisterSchemas = false
-		serdeConfig.UseLatestVersion = true
-		serdeConfig.EnableValidation = true
+		serdes = jsonschema.NewSerializerConfig()
+		serdes.AutoRegisterSchemas = false
+		serdes.EnableValidation = true
 
-		ser, err = jsonschema.NewSerializer(client, 2, serdeConfig)
+		serializer, err = jsonschema.NewSerializer(client, 2, serdes)
 		if err != nil {
-			grpcLog.Errorln(fmt.Sprintf("Failed to create serializer: %s", err))
+			grpcLog.Errorln(fmt.Sprintf("Failed to create Json Schema serializer: %s", err))
 			os.Exit(1)
 		}
 
@@ -941,7 +961,7 @@ func runLoader(arg string) {
 
 		}
 
-		// json Marshal for printing purpose
+		// json Marshal for printing purpose, and used as input for Mongo if enabled.
 		json_SalesBasket, err = json.Marshal(t_SalesBasket)
 		if err != nil {
 			grpcLog.Fatalln(fmt.Sprintf("json_SalesBasket Marshal: %s", err))
@@ -971,10 +991,11 @@ func runLoader(arg string) {
 			}
 
 			// SalesBasket
-			valueBytes, err := ser.Serialize(vKafka.BasketTopicname, &t_SalesBasket)
+			var i_SalesBasket interface{} = t_SalesBasket
+			valueBytes, err := serializer.Serialize(vKafka.BasketTopicname, i_SalesBasket)
 			if err != nil {
-				grpcLog.Errorln(fmt.Sprintf("SalesBasket: Serialize error: %s", err))
-
+				grpcLog.Errorln(fmt.Sprintf("SalesBasket: Failed to Serialize, error: %s", err))
+				os.Exit(1)
 			}
 
 			kafkaMsg := kafka.Message{
@@ -982,8 +1003,9 @@ func runLoader(arg string) {
 					Topic:     &vKafka.BasketTopicname,
 					Partition: kafka.PartitionAny,
 				},
-				Value: valueBytes,        // This is the payload/body thats being posted
-				Key:   []byte(storeName), // We us this to group the same transactions together in order, IE submitting/Debtor Bank.
+				Value:   valueBytes,        // This is the payload/body thats being posted
+				Key:     []byte(storeName), // We us this to group the same transactions together in order, IE submitting/Debtor Bank.
+				Headers: []kafka.Header{{Key: "myBasketTopicnameHeader", Value: []byte("header values are binary")}},
 			}
 
 			// This is where we publish message onto the topic... on the Confluent cluster for now,
@@ -993,9 +1015,14 @@ func runLoader(arg string) {
 			}
 
 			// SalesPayment
-			valueBytes, err = ser.Serialize(vKafka.PaymentTopicname, &t_SalesPayment)
+			var i_SalesPayment interface{} = &t_SalesPayment
+			fmt.Println("i_SalesPayment:", i_SalesPayment)
+
+			valueBytes, err = serializer.Serialize(vKafka.PaymentTopicname, &i_SalesPayment)
 			if err != nil {
-				grpcLog.Errorln(fmt.Sprintf("SalesPayment: Serialize error: %s", err))
+				grpcLog.Errorln(fmt.Sprintf("SalesPayment: Failed to Serialize, error: %s", err))
+				os.Exit(1)
+
 			}
 
 			kafkaMsg = kafka.Message{
@@ -1003,8 +1030,9 @@ func runLoader(arg string) {
 					Topic:     &vKafka.PaymentTopicname,
 					Partition: kafka.PartitionAny,
 				},
-				Value: valueBytes,        // This is the payload/body thats being posted
-				Key:   []byte(storeName), // We us this to group the same transactions together in order, IE submitting/Debtor Bank.
+				Value:   valueBytes,        // This is the payload/body thats being posted
+				Key:     []byte(storeName), // We us this to group the same transactions together in order, IE submitting/Debtor Bank.
+				Headers: []kafka.Header{{Key: "myPaymentTopicnameHeader", Value: []byte("header values are binary")}},
 			}
 
 			// This is where we publish message onto the topic... on the Confluent cluster for now,

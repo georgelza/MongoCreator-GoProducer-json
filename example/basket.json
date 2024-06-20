@@ -19,38 +19,6 @@
 			"Category": "",
 			"Price":12412.00,
 			"Quantity":3
-		},
-		{
-			"Id": "234123421",
-			"Name": "fgtwergo678d",
-			"Brand": "",
-			"Category": "",
-			"Price":12.00,
-			"Quantity":3
-		},
-		{
-			"Id": "534123412",
-			"Name": "fadsagergfd",
-			"Brand": "",
-			"Category": "",
-			"Price":112.00,
-			"Quantity":2
-		},
-		{
-			"Id": "224123412",
-			"Name": "fgtwerg5fd",
-			"Brand": "",
-			"Category": "",
-			"Price":22.00,
-			"Quantity":4
-		},
-		{
-			"Id": "234123412",
-			"Name": "fgtwe1ergfd",
-			"Brand": "",
-			"Category": "",
-			"Price":4.99,
-			"Quantity":1
 		}
 	],
 	"Net": 442.23,
