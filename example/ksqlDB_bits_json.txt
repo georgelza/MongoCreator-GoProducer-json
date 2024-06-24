@@ -34,7 +34,7 @@ docker exec -t kafkacat  kcat \
 CREATE STREAM json_salesbaskets (
 	   	InvoiceNumber VARCHAR,
 	 	SaleDateTime VARCHAR,
-	 	SaleTimestamp TIMESTAMP,
+	 	SaleTimestamp VARCHAR,
 	  	TerminalPoint VARCHAR,
 	   	Nett DOUBLE,
 	  	Vat DOUBLE,
@@ -45,52 +45,53 @@ CREATE STREAM json_salesbaskets (
      	Clerk STRUCT<
      		Id VARCHAR,
           	Name VARCHAR>,
-    	BasketItems ARRAY< STRUCT<id VARCHAR,
+    	BasketItems ARRAY< STRUCT<
+			Id VARCHAR,
         	Name VARCHAR,
           	Brand VARCHAR,
           	Category VARCHAR,
          	Price DOUBLE,
-        	Quantity integer >>) 
+        	Quantity DOUBLE >>) 
 WITH (KAFKA_TOPIC='json_salesbaskets',
-		    VALUE_FORMAT='JSON',
+		    VALUE_FORMAT='JSON_SR',
         	PARTITIONS=1);
-       
+
        
 -- salespayments       
-CREATE STREAM json_salespayments	 (	
+CREATE STREAM json_salespayments (
 	      	InvoiceNumber VARCHAR,
 	      	FinTransactionID VARCHAR,
 	      	PayDateTime VARCHAR,
-	      	PayTimestamp TIMESTAMP,
-	      	Paid DOUBLE )        
+			PayTimestamp VARCHAR,
+	      	Paid DOUBLE      )
 WITH (KAFKA_TOPIC='json_salespayments',
-       		VALUE_FORMAT='JSON',
+       		VALUE_FORMAT='JSON_SR',
        		PARTITIONS=1);
      
-CREATE STREAM json_salescompleted WITH (KAFKA_TOPIC='json_salescompleted',
-       VALUE_FORMAT='JSON',
+CREATE STREAM json_salescompleted1 WITH (KAFKA_TOPIC='json_salescompleted1',
+       VALUE_FORMAT='JSON_SR',
        PARTITIONS=1)
        as  
 select 
-	b.InvoiceNumber InvNumber, 
-	b.SaleDateTime,
-	b.SaleTimestamp, 
-	b.TerminalPoint,
-	b.Nett,
-	b.Vat,
-	b.Total,
+	b.invoiceNumber InvNumber, 
+	b.saleDateTime,
+	b.saleTimestamp, 
+	b.terminalPoint,
+	b.nett,
+	b.vat,
+	b.total,
 	b.store,
 	b.clerk,
-	b.BasketItems,
-	p.FinTransactionID,
-	p.PayDateTime,
-	p.PayTimestamp,
-	p.Paid
+	b.basketItems,
+	p.finTransactionId,
+	p.payDateTime,
+	p.payTimestamp,
+	p.paid
 from 
 	json_salespayments p INNER JOIN
 	json_salesbaskets b
 WITHIN 7 DAYS 
-on b.InvoiceNumber = p.InvoiceNumber
+on b.invoiceNumber = p.invoiceNumber
 emit changes;
 
 
@@ -115,7 +116,7 @@ docker exec -t kafkacat \
 docker exec -t kafkacat \
   kcat \
   -b broker:29092 \
-  -t json_salescompleted \
+  -t json_salescompleted1 \
   -C 
 
 

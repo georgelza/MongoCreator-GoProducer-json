@@ -1,29 +1,28 @@
-
   {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
-      "FinTransactionID": {
+      "invoiceNumber": {
         "type": "string"
       },
-      "InvoiceNumber": {
+      "finTransactionId": {
         "type": "string"
       },
-      "Paid": {
+      "payDateTime": {
+        "type": "string"
+      },
+      "payTimestamp": {
+        "type": "string"
+      },
+      "paid": {
         "type": "number"
-      },
-      "PayDateTime": {
-        "type": "string"
-      },
-      "PayTimetamp": {
-        "type": "string"
       }
     },
     "required": [
-      "InvoiceNumber",
-      "PayDateTime",
-      "PayTimetamp",
-      "Paid",
-      "FinTransactionID"
+      "invoiceNumber",
+      "payDateTime",
+      "payTimestamp",
+      "paid",
+      "finTransactionId"
     ],
     "title": "json_salespayments",
     "type": "object"

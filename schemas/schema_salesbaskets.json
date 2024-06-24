@@ -20,6 +20,12 @@
         "name": {
           "type": "string"
         },
+        "brand":{
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
         "price": {
           "type": "number"
         },
@@ -65,6 +71,16 @@
       "type": "number"
     }
   },
+  "required": [
+    "invoiceNumber",
+    "saleDateTime",
+    "saleTimestamp",
+    "clerk",
+    "total",
+    "nett",
+    "vat",
+    "basketItems"
+  ],
     "title": "json_salesbaskets",
     "type": "object"
 }

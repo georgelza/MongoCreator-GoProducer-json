@@ -3,15 +3,16 @@
 ------------------------------------------------------------------------------
 -- Post/Sink to Local Mongo container
 
-  curl -X POST \
+curl -X POST \
   -H "Content-Type: application/json" \
   --data '
       {"name": "mongo-local-salesbaskets-sink-json",
         "config": {
           "connector.class":"com.mongodb.kafka.connect.MongoSinkConnector",
-          "connection.uri":"mongodb://mbp.local:27017/?directConnection=true",
+          "connection.uri":"mongodb://169.254.135.148:27017/?directConnection=true",
           "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+          "value.converter.schema.registry.url":"http://schema-registry:8081",
           "value.converter.schemas.enable": false,
           "database":"MongoCom0",
           "collection":"json_salesbaskets",
@@ -28,9 +29,10 @@
       {"name": "mongo-local-salespayments-sink-json",
         "config": {
           "connector.class":"com.mongodb.kafka.connect.MongoSinkConnector",
-          "connection.uri":"mongodb://mbp.local:27017/?directConnection=true",
+          "connection.uri":"mongodb://169.254.135.148:27017/?directConnection=true",
           "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+          "value.converter.schema.registry.url":"http://schema-registry:8081",
           "value.converter.schemas.enable": false,
           "database":"MongoCom0",
           "collection":"json_salespayments",
@@ -40,6 +42,25 @@
       ' \
   http://localhost:8083/connectors -w "\n"
 
+
+curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '
+      {"name": "mongo-local-salescompleted1-sink-json",
+        "config": {
+          "connector.class":"com.mongodb.kafka.connect.MongoSinkConnector",
+          "connection.uri":"mongodb://169.254.135.148:27017/?directConnection=true",
+          "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+          "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+          "value.converter.schema.registry.url":"http://schema-registry:8081",
+          "value.converter.schemas.enable": false,
+          "database":"MongoCom0",
+          "collection":"json_salescompleted1",
+          "topics":"json_salescompleted1"
+          }
+      }
+      ' \
+  http://localhost:8083/connectors -w "\n"
 
 ------------------------------------------------------------------------------
 
@@ -53,7 +74,8 @@ curl -X POST \
           "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
           "connection.uri": "mongodb+srv://adminuser:pass@cluster0.gqtneeXX.mongodb.net",
           "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+          "value.converter.schema.registry.url":"http://schema-registry:8081",
           "value.converter.schemas.enable": false,
           "database": "MongoCom0",
           "collection": "json_salesbaskets",
@@ -70,13 +92,34 @@ curl -X POST \
      { "name": "mongo-atlas-salespayments-sink-json",
         "config": {
           "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
-          "connection.uri": "mongodb+srv://adminuser:pass@cluster0.gqtneeXX.mongodb.net",
+          "connection.uri": "mongodb+srv://adminuser:pass@clusterXX.gqtnee9.mongodb.net",
           "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+          "value.converter.schema.registry.url":"http://schema-registry:8081",
           "value.converter.schemas.enable": false,
           "database": "MongoCom0",
           "collection": "json_salespayments",
           "topics": "json_salespayments"
+        }
+      } 
+      ' \
+  http://localhost:8083/connectors -w "\n"
+
+
+ curl -X POST \
+  -H "Content-Type: application/json" \
+  --data '
+     { "name": "mongo-atlas-salescompleted1-sink-json",
+        "config": {
+          "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+          "connection.uri": "mongodb+srv://adminuser:pass@cluster0.gqtneeXX.mongodb.net",
+          "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+          "value.converter": "io.confluent.connect.json.JsonSchemaConverter",
+          "value.converter.schema.registry.url":"http://schema-registry:8081",
+          "value.converter.schemas.enable": false,
+          "database": "MongoCom0",
+          "collection": "json_salescompleted1",
+          "topics": "json_salescompleted1"
         }
       } 
       ' \

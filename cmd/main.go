@@ -351,8 +351,6 @@ func printConfig(vGeneral types.Tp_general) {
 // print some more configurations
 func printKafkaConfig(vKafka types.TKafka) {
 
-	fmt.Printf("xxxxxxxxxxxxxxxxxxx")
-
 	grpcLog.Info("****** Kafka Connection Parameters *****")
 	grpcLog.Info("*")
 	grpcLog.Info("* Kafka bootstrap Server is\t", vKafka.Bootstrapservers)
@@ -657,13 +655,13 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 		InvoiceNumber: txnId,
 		SaleDateTime:  eventTime,
 		SaleTimestamp: fmt.Sprint(eventTimestamp.UnixMilli()),
-		Store:         store,
-		Clerk:         clerk,
 		TerminalPoint: strconv.Itoa(terminalPoint),
-		BasketItems:   arBasketItems,
 		Nett:          nett_amount,
 		VAT:           vat_amount,
 		Total:         total_amount,
+		Store:         store,
+		Clerk:         clerk,
+		BasketItems:   arBasketItems,
 	}
 
 	return t_Basket, eventTimestamp, store.Name, nil
@@ -679,8 +677,8 @@ func constructPayments(txnId string, eventTimestamp time.Time, total_amount floa
 		InvoiceNumber:    txnId,
 		PayDateTime:      payTime,
 		PayTimestamp:     fmt.Sprint(payTimestamp.UnixMilli()),
-		Paid:             total_amount,
 		FinTransactionID: uuid.New().String(),
+		Paid:             total_amount,
 	}
 
 	return t_SalesPayment
@@ -780,7 +778,6 @@ func runLoader(arg string) {
 			os.Exit(1)
 
 		}
-		grpcLog.Infoln(fmt.Sprintf("Created Kafka Producer %v", p))
 
 		// Create a new Schema Registry client
 		client, err = schemaregistry.NewClient(schemaregistry.NewConfig(vKafka.SchemaRegistryURL))
@@ -792,7 +789,7 @@ func runLoader(arg string) {
 		serdes = jsonschema.NewSerializerConfig()
 		serdes.AutoRegisterSchemas = false
 		serdes.EnableValidation = true
-
+		serdes.UseLatestVersion = true
 		serializer, err = jsonschema.NewSerializer(client, serde.ValueSerde, serdes)
 		if err != nil {
 			grpcLog.Errorln(fmt.Sprintf("Failed to create Json Schema serializer: %s", err))
