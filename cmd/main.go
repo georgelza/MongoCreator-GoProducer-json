@@ -32,6 +32,8 @@
 *					: Renaming the main repo => *-pb as the Protobuf version & a second version/repo *-json thats json based
 *					: No Schemaregistration for the json version at this point
 *
+*					: 25 June 2024
+*					: adding storeid to TPClerkstruct
 *
 *	Git				: https://github.com/georgelza/MongoCreator-GoProducer
 *
@@ -99,11 +101,11 @@ var (
 	grpcLog glog.LoggerV2
 	//validate = validator.New()
 	varSeed  types.TPSeed
-	vGeneral types.Tp_general
+	vGeneral types.TPGeneral
 	pathSep  = string(os.PathSeparator)
 	runId    string
-	vKafka   types.TKafka
-	vMongodb types.TMongodb
+	vKafka   types.TPKafka
+	vMongodb types.TPMongodb
 
 	p *kafka.Producer
 )
@@ -129,11 +131,11 @@ func init() {
 
 }
 
-func loadConfig(params ...string) types.Tp_general {
+func loadConfig(params ...string) types.TPGeneral {
 
 	var err error
 
-	vGeneral := types.Tp_general{}
+	vGeneral := types.TPGeneral{}
 	env := "dev"
 	if len(params) > 0 { // Input environment was specified, so lets use it
 		env = params[0]
@@ -188,9 +190,9 @@ func loadConfig(params ...string) types.Tp_general {
 
 // Load Kafka specific configuration Parameters, this is so that we can gitignore this dev_kafka.json file/seperate
 // from the dev_app.json file
-func loadKafka(params ...string) types.TKafka {
+func loadKafka(params ...string) types.TPKafka {
 
-	vKafka := types.TKafka{}
+	vKafka := types.TPKafka{}
 	env := "dev"
 	if len(params) > 0 {
 		env = params[0]
@@ -234,9 +236,9 @@ func loadKafka(params ...string) types.TKafka {
 	return vKafka
 }
 
-func loadMongoProps(params ...string) types.TMongodb {
+func loadMongoProps(params ...string) types.TPMongodb {
 
-	vMongodb := types.TMongodb{}
+	vMongodb := types.TPMongodb{}
 	env := "dev"
 	if len(params) > 0 {
 		env = params[0]
@@ -321,7 +323,7 @@ func loadSeed(fileName string) types.TPSeed {
 	return vSeed
 }
 
-func printConfig(vGeneral types.Tp_general) {
+func printConfig(vGeneral types.TPGeneral) {
 
 	grpcLog.Info("****** General Parameters *****")
 	grpcLog.Info("*")
@@ -349,7 +351,7 @@ func printConfig(vGeneral types.Tp_general) {
 }
 
 // print some more configurations
-func printKafkaConfig(vKafka types.TKafka) {
+func printKafkaConfig(vKafka types.TPKafka) {
 
 	grpcLog.Info("****** Kafka Connection Parameters *****")
 	grpcLog.Info("*")
@@ -375,7 +377,7 @@ func printKafkaConfig(vKafka types.TKafka) {
 }
 
 // print some more configurations
-func printMongoConfig(vMongodb types.TMongodb) {
+func printMongoConfig(vMongodb types.TPMongodb) {
 
 	grpcLog.Info("*")
 	grpcLog.Info("****** MongoDB Connection Parameters *****")
@@ -397,7 +399,7 @@ func printMongoConfig(vMongodb types.TMongodb) {
 }
 
 // Create Kafka topic if not exist, using admin client
-func CreateTopic(props types.TKafka) {
+func CreateTopic(props types.TPKafka) {
 
 	cm := kafka.ConfigMap{
 		"bootstrap.servers":       props.Bootstrapservers,
@@ -568,7 +570,7 @@ func JsonToBson(message []byte) ([]byte, error) {
 	return marshaled, nil
 }
 
-func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, storeName string, err error) {
+func constructFakeBasket() (t_Basket types.TPBasket, eventTimestamp time.Time, storeName string, err error) {
 
 	// Fake Data etc, not used much here though
 	// https://github.com/brianvoe/gofakeit
@@ -576,10 +578,10 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 
 	gofakeit.Seed(0)
 
-	var store types.TStoreStruct
+	var store types.TPStoreStruct
 	var clerk types.TPClerkStruct
-	var BasketItem types.Tp_BasketItem
-	var arBasketItems []types.Tp_BasketItem
+	var BasketItem types.TPBasketItem
+	var arBasketItems []types.TPBasketItem
 
 	if vGeneral.Store == 0 {
 		// Determine how many Stores we have in seed file,
@@ -587,7 +589,7 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 		storeCount := len(varSeed.Stores) - 1
 		nStoreId := gofakeit.Number(0, storeCount)
 		//store = varSeed.Stores[nStoreId]
-		store = types.TStoreStruct{
+		store = types.TPStoreStruct{
 			Id:   varSeed.Stores[nStoreId].Id,
 			Name: varSeed.Stores[nStoreId].Name,
 		}
@@ -595,7 +597,7 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 	} else {
 		// We specified a specific store
 		// store = varSeed.Stores[vGeneral.Store]
-		store = types.TStoreStruct{
+		store = types.TPStoreStruct{
 			Id:   varSeed.Stores[vGeneral.Store].Id,
 			Name: varSeed.Stores[vGeneral.Store].Name,
 		}
@@ -631,7 +633,7 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 		quantity := gofakeit.Number(1, vGeneral.Max_quantity)
 		price := varSeed.Products[productId].Price
 
-		BasketItem = types.Tp_BasketItem{
+		BasketItem = types.TPBasketItem{
 			Id:       varSeed.Products[productId].Id,
 			Name:     varSeed.Products[productId].Name,
 			Brand:    varSeed.Products[productId].Brand,
@@ -649,9 +651,9 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 	nett_amount = toFixed(nett_amount, 2)
 	vat_amount := toFixed(nett_amount*vGeneral.Vatrate, 2) // sales tax
 	total_amount := toFixed(nett_amount+vat_amount, 2)
-	terminalPoint := gofakeit.Number(0, 20)
+	terminalPoint := gofakeit.Number(1, vGeneral.Terminals)
 
-	t_Basket = types.Tp_basket{
+	t_Basket = types.TPBasket{
 		InvoiceNumber: txnId,
 		SaleDateTime:  eventTime,
 		SaleTimestamp: fmt.Sprint(eventTimestamp.UnixMilli()),
@@ -667,17 +669,17 @@ func constructFakeBasket() (t_Basket types.Tp_basket, eventTimestamp time.Time, 
 	return t_Basket, eventTimestamp, store.Name, nil
 }
 
-func constructPayments(txnId string, eventTimestamp time.Time, total_amount float64) (t_SalesPayment types.Tp_payment) {
+func constructPayments(txnId string, eventTimestamp time.Time, total_amount float64) (t_SalesPayment types.TPPayment) {
 
 	// We're saying payment can be now up to 5min and 59 seconds later
 	payTimestamp := eventTimestamp.Local().Add(time.Minute*time.Duration(gofakeit.Number(0, 5)) + time.Second*time.Duration(gofakeit.Number(0, 59)))
 	payTime := payTimestamp.Format("2006-01-02T15:04:05.000") + vGeneral.TimeOffset
 
-	t_SalesPayment = types.Tp_payment{
+	t_SalesPayment = types.TPPayment{
 		InvoiceNumber:    txnId,
 		PayDateTime:      payTime,
 		PayTimestamp:     fmt.Sprint(payTimestamp.UnixMilli()),
-		FinTransactionID: uuid.New().String(),
+		FinTransactionId: uuid.New().String(),
 		Paid:             total_amount,
 	}
 
