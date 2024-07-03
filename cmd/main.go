@@ -578,10 +578,10 @@ func constructFakeBasket() (t_Basket types.TPBasket, eventTimestamp time.Time, s
 
 	gofakeit.Seed(0)
 
-	var store types.TPStoreStruct
-	var clerk types.TPClerkStruct
-	var BasketItem types.TPBasketItem
-	var arBasketItems []types.TPBasketItem
+	var store types.TPIDStruct
+	var clerk types.TPIDStruct
+	var BasketItem types.TPBasketItems
+	var arBasketItems []types.TPBasketItems
 
 	if vGeneral.Store == 0 {
 		// Determine how many Stores we have in seed file,
@@ -589,7 +589,7 @@ func constructFakeBasket() (t_Basket types.TPBasket, eventTimestamp time.Time, s
 		storeCount := len(varSeed.Stores) - 1
 		nStoreId := gofakeit.Number(0, storeCount)
 		//store = varSeed.Stores[nStoreId]
-		store = types.TPStoreStruct{
+		store = types.TPIDStruct{
 			Id:   varSeed.Stores[nStoreId].Id,
 			Name: varSeed.Stores[nStoreId].Name,
 		}
@@ -597,7 +597,7 @@ func constructFakeBasket() (t_Basket types.TPBasket, eventTimestamp time.Time, s
 	} else {
 		// We specified a specific store
 		// store = varSeed.Stores[vGeneral.Store]
-		store = types.TPStoreStruct{
+		store = types.TPIDStruct{
 			Id:   varSeed.Stores[vGeneral.Store].Id,
 			Name: varSeed.Stores[vGeneral.Store].Name,
 		}
@@ -606,7 +606,7 @@ func constructFakeBasket() (t_Basket types.TPBasket, eventTimestamp time.Time, s
 	// Determine how many Clerks we have in seed file,
 	clerkCount := len(varSeed.Clerks) - 1
 	nClerkId := gofakeit.Number(0, clerkCount)
-	clerk = types.TPClerkStruct{
+	clerk = types.TPIDStruct{
 		Id:   varSeed.Clerks[nClerkId].Id,
 		Name: varSeed.Clerks[nClerkId].Name,
 	}
@@ -633,7 +633,7 @@ func constructFakeBasket() (t_Basket types.TPBasket, eventTimestamp time.Time, s
 		quantity := gofakeit.Number(1, vGeneral.Max_quantity)
 		price := varSeed.Products[productId].Price
 
-		BasketItem = types.TPBasketItem{
+		BasketItem = types.TPBasketItems{
 			Id:       varSeed.Products[productId].Id,
 			Name:     varSeed.Products[productId].Name,
 			Brand:    varSeed.Products[productId].Brand,
@@ -1222,24 +1222,24 @@ func runLoader(arg string) {
 			// SalesBasket
 			pretty_basket, err := json.MarshalIndent(t_SalesBasket, "", " ")
 			if err != nil {
-				grpcLog.Errorln(fmt.Sprintf("pretty_basket MarshalIndent error %s", err))
+				grpcLog.Errorln(fmt.Sprintf("Basket MarshalIndent error %s", err))
 
 			}
 
 			if _, err = f_basket.WriteString(string(pretty_basket) + ",\n"); err != nil {
-				grpcLog.Errorln(fmt.Sprintf("os.WriteString error %s", err))
+				grpcLog.Errorln(fmt.Sprintf("Basket os.WriteString error %s", err))
 
 			}
 
 			// SalesPayment
 			pretty_pmnt, err := json.MarshalIndent(t_SalesPayment, "", " ")
 			if err != nil {
-				grpcLog.Errorln(fmt.Sprintf("pretty_pmnt MarshalIndent error %s", err))
+				grpcLog.Errorln(fmt.Sprintf("Payment MarshalIndent error %s", err))
 
 			}
 
 			if _, err = f_pmnt.WriteString(string(pretty_pmnt) + ",\n"); err != nil {
-				grpcLog.Errorln(fmt.Sprintf("pretty_pmnt os.WriteString error %s", err))
+				grpcLog.Errorln(fmt.Sprintf("Payment os.WriteString error %s", err))
 
 			}
 
@@ -1251,11 +1251,18 @@ func runLoader(arg string) {
 		}
 
 		// used to slow the data production/posting to kafka and safe to file system down.
+		// This mimics the speed with which baskets are presented at terminalpoint.
+		// if vGeneral.sleep = 1000, then n will be random value of 0 -> 1000  aka 0 and 1 second
+		// the value is seconds based. so to imply every 5 min a new basket is to be presented then it's 5 x 60 x 1000 = 300000
 		if vGeneral.Sleep > 0 {
-			n := rand.Intn(vGeneral.Sleep) // if vGeneral.sleep = 1000, then n will be random value of 0 -> 1000  aka 0 and 1 second
+			n := rand.Intn(vGeneral.Sleep)
 			if vGeneral.Debuglevel >= 2 {
-				grpcLog.Infof("Going to sleep for            : %d Milliseconds\n", n)
+				if n > 60000 { // 1000 = 1 sec, 6000 = 6 sec, 60000 = 1min
+					grpcLog.Infof("Going to sleep for            : %d Seconds\n", n/1000)
 
+				} else {
+					grpcLog.Infof("Going to sleep for            : %d Milliseconds\n", n)
+				}
 			}
 			time.Sleep(time.Duration(n) * time.Millisecond)
 		}

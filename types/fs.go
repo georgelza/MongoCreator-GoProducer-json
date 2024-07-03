@@ -55,7 +55,12 @@ type TPMongodb struct {
 	Batch_size        int
 }
 
-type TPBasketItem struct {
+type TPIDStruct struct {
+	Id   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
+type TPBasketItems struct {
 	Id       string  `json:"id,omitempty"`
 	Name     string  `json:"name,omitempty"`
 	Brand    string  `json:"brand,omitempty"`
@@ -65,16 +70,16 @@ type TPBasketItem struct {
 }
 
 type TPBasket struct {
-	InvoiceNumber string         `json:"invoiceNumber,omitempty"`
-	SaleDateTime  string         `json:"saleDateTime,omitempty"`
-	SaleTimestamp string         `json:"saleTimestamp,omitempty"`
-	TerminalPoint string         `json:"terminalPoint,omitempty"`
-	Nett          float64        `json:"nett,omitempty"`
-	VAT           float64        `json:"vat,omitempty"`
-	Total         float64        `json:"total,omitempty"`
-	Store         TPStoreStruct  `json:"store,omitempty"`
-	Clerk         TPClerkStruct  `json:"clerk,omitempty"`
-	BasketItems   []TPBasketItem `json:"basketItems,omitempty"`
+	InvoiceNumber string          `json:"invoiceNumber,omitempty"`
+	SaleDateTime  string          `json:"saleDateTime,omitempty"`
+	SaleTimestamp string          `json:"saleTimestamp,omitempty"`
+	TerminalPoint string          `json:"terminalPoint,omitempty"`
+	Nett          float64         `json:"nett,omitempty"`
+	VAT           float64         `json:"vat,omitempty"`
+	Total         float64         `json:"total,omitempty"`
+	Store         TPIDStruct      `json:"store,omitempty"`
+	Clerk         TPIDStruct      `json:"clerk,omitempty"`
+	BasketItems   []TPBasketItems `json:"basketItems,omitempty"`
 }
 
 type TPPayment struct {

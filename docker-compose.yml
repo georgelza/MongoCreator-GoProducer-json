@@ -132,7 +132,9 @@ services:
       - ksqldb-server
     entrypoint: /bin/sh
     tty: true
-
+    volumes:
+      - ./kSQL:/data
+      
   ksql-datagen:
     image: confluentinc/ksqldb-examples:7.6.1
     hostname: ksql-datagen

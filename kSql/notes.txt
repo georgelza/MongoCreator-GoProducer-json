@@ -54,3 +54,5 @@ docker exec -t kafkacat \
 -- orders
 -- https://www.youtube.com/watch?v=TQd5rfFmbhw
 CREATE STREAM ORDERS WITH (KAFKA_TOPIC='orders', VALUE_FORMAT='AVRO' );
+
+

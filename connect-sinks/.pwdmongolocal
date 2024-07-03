@@ -1,4 +1,2 @@
 
-
-
 export MONGO_URL=mongodb://172.20.10.3:27017/?directConnection=true

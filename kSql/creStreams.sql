@@ -108,7 +108,7 @@ CREATE STREAM json_salespayments2 WITH (KAFKA_TOPIC='json_salespayments2',
 
 
 
-CREATE STREAM json_salescompleted WITH (KAFKA_TOPIC='json_salescompleted',
+CREATE STREAM json_salescompleted_json WITH (KAFKA_TOPIC='json_salescompleted_json',
        VALUE_FORMAT='Json',
        PARTITIONS=1)
        as  
@@ -133,48 +133,6 @@ from
 WITHIN 7 DAYS 
 on b.InvoiceNumber = p.InvoiceNumber
 emit changes;
-
-
-CREATE TABLE json_sales_per_terminal_point WITH (KAFKA_TOPIC='json_sales_per_terminal_point',
-       VALUE_FORMAT='Json',
-       PARTITIONS=1)
-       as  
-SELECT  
-	store->id as store_id,
-	count(1) as sales_per_terminal
-from JSON_SALEScompleted1 
-group by store->id 
-emit changes;
-
-
-CREATE TABLE json_sales_per_terminal_point WITH (KAFKA_TOPIC='json_sales_per_terminal_point',
-       FORMAT='AVRO',
-       PARTITIONS=1)
-       as  
-SELECT 
-	store->id as store_id,
-	TerminalPoint as terminal_point,
-    count(1) as sales_per_terminal
-FROM json_salescompleted1
-WINDOW TUMBLING (SIZE 1 HOUR)
-WHERE store->Id = '324213441'
-group by store->id , TerminalPoint	
-  EMIT CHANGES;
-
-
-
-
-
-
-SELECT 
-    store->Id,
-	TerminalPoint as terminal_point,
-    count(1) as sales_per_terminal
-FROM json_salescompleted1
-where store->Id = '324213441'
-GROUP BY store->Id, TerminalPoint
-emit changes;
-
 
 
 CREATE TABLE pageviews_per_region AS
